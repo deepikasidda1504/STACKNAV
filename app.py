@@ -1,7 +1,13 @@
 from flask import Flask, render_template, redirect, jsonify
 import os
 app = Flask(__name__)
-
+# Allow Chrome Extension / browser pages to access the API
+@app.after_request
+def add_cors_headers(response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    return response
 # =====================================================
 # TWO STACKS
 # =====================================================
