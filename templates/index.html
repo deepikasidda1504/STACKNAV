@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Browser History Stack</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+    <div class="container">
+
+        <!-- Header -->
+        <header class="header">
+
+            <div class="logo">
+                🌐
+            </div>
+
+            <div>
+                <h1>Browser History</h1>
+                <p>Backward & Forward Navigation using Stack</p>
+            </div>
+
+        </header>
+
+
+        <!-- Current Page -->
+        <section class="current-card">
+
+            <div class="section-title">
+                <span>📍</span>
+                <h2>Current Page</h2>
+            </div>
+
+            <div class="current-page">
+
+                <div class="page-icon">
+                    🌐
+                </div>
+
+                <div class="page-info">
+
+                    <h3 id="currentPage">
+                        {{ current_page }}
+                    </h3>
+
+                    <p>Current browser location</p>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- Visit Page Section -->
+        <section class="current-card">
+
+            <div class="section-title">
+                <span>🌎</span>
+                <h2>Visit a Page</h2>
+            </div>
+
+
+            <div class="navigation">
+
+                <button
+                    class="nav-button back-button"
+                    onclick="window.location.href='/visit/Google'"
+                >
+
+                    <span>🔍</span>
+
+                    <span>
+                        <strong>Google</strong>
+                        <small>Visit Google</small>
+                    </span>
+
+                </button>
+
+
+                <button
+                    class="nav-button forward-button"
+                    onclick="window.location.href='/visit/YouTube'"
+                >
+
+                    <span>▶️</span>
+
+                    <span>
+                        <strong>YouTube</strong>
+                        <small>Visit YouTube</small>
+                    </span>
+
+                </button>
+
+            </div>
+
+
+            <div class="navigation">
+
+                <button
+                    class="nav-button back-button"
+                    onclick="window.location.href='/visit/Instagram'"
+                >
+
+                    <span>📷</span>
+
+                    <span>
+                        <strong>Instagram</strong>
+                        <small>Visit Instagram</small>
+                    </span>
+
+                </button>
+
+
+                <button
+                    class="nav-button forward-button"
+                    onclick="window.location.href='/visit/GitHub'"
+                >
+
+                    <span>💻</span>
+
+                    <span>
+                        <strong>GitHub</strong>
+                        <small>Visit GitHub</small>
+                    </span>
+
+                </button>
+
+            </div>
+
+        </section>
+
+
+        <!-- Browser Navigation -->
+        <section class="navigation">
+
+            <!-- BACK -->
+            <button
+                id="backButton"
+                class="nav-button back-button"
+            >
+
+                <span class="arrow">←</span>
+
+                <span>
+                    <strong>Back</strong>
+                    <small>Previous page</small>
+                </span>
+
+            </button>
+
+
+            <!-- FORWARD -->
+            <button
+                id="forwardButton"
+                class="nav-button forward-button"
+            >
+
+                <span>
+                    <strong>Forward</strong>
+                    <small>Next page</small>
+                </span>
+
+                <span class="arrow">→</span>
+
+            </button>
+
+        </section>
+
+
+        <!-- History -->
+        <section class="history-container">
+
+
+            <!-- Back History -->
+            <div class="history-card">
+
+                <div class="history-header">
+
+                    <div class="history-icon back-icon">
+                        ←
+                    </div>
+
+                    <div>
+                        <h2>Back History</h2>
+                        <p>Pages you can go back to</p>
+                    </div>
+
+                </div>
+
+
+                <ul id="backHistory" class="history-list">
+
+                    {% if back_history %}
+
+                        {% for page in back_history %}
+
+                            <li>
+                                {{ page }}
+                            </li>
+
+                        {% endfor %}
+
+                    {% else %}
+
+                        <li class="empty-message">
+                            No previous pages
+                        </li>
+
+                    {% endif %}
+
+                </ul>
+
+            </div>
+
+
+            <!-- Forward History -->
+            <div class="history-card">
+
+                <div class="history-header">
+
+                    <div class="history-icon forward-icon">
+                        →
+                    </div>
+
+                    <div>
+                        <h2>Forward History</h2>
+                        <p>Pages you can move forward to</p>
+                    </div>
+
+                </div>
+
+
+                <ul id="forwardHistory" class="history-list">
+
+                    {% if forward_history %}
+
+                        {% for page in forward_history %}
+
+                            <li>
+                                {{ page }}
+                            </li>
+
+                        {% endfor %}
+
+                    {% else %}
+
+                        <li class="empty-message">
+                            No forward pages
+                        </li>
+
+                    {% endif %}
+
+                </ul>
+
+            </div>
+
+        </section>
+
+
+        <!-- Stack Architecture -->
+        <section class="stack-info">
+
+            <div class="stack-title">
+
+                <span>📚</span>
+
+                <div>
+
+                    <h2>Two Stack Architecture</h2>
+
+                    <p>
+                        How our browser navigation works
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            <div class="stack-boxes">
+
+                <div class="stack-box">
+
+                    <div class="stack-symbol">
+                        ←
+                    </div>
+
+                    <h3>
+                        Back Stack
+                    </h3>
+
+                    <p>
+                        Stores previously visited pages
+                    </p>
+
+                </div>
+
+
+                <div class="stack-arrow">
+                    ⇄
+                </div>
+
+
+                <div class="stack-box">
+
+                    <div class="stack-symbol">
+                        →
+                    </div>
+
+                    <h3>
+                        Forward Stack
+                    </h3>
+
+                    <p>
+                        Stores pages available for forward navigation
+                    </p>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- Footer -->
+        <footer>
+
+            <p>
+                🧠 Data Structure:
+                <strong>Stack (LIFO)</strong>
+            </p>
+
+            <p>
+                Browser History Stack Project
+            </p>
+
+        </footer>
+
+    </div>
+
+</body>
+
+</html>
