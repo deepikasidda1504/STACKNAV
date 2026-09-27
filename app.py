@@ -1,33 +1,94 @@
-from flask import Flask, render_template, redirect, jsonify
+from flask import Flask, render_template, redirect, jsonify, request
 import os
+
 app = Flask(__name__)
-# Allow Chrome Extension / browser pages to access the API
+
+
+# =====================================================
+# CORS
+# =====================================================
+
 @app.after_request
 def add_cors_headers(response):
     response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Access-Control-Allow-Headers"] = "Content-Type"
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
     return response
+
+
 # =====================================================
-# TWO STACKS
+# USER SESSIONS
+# =====================================================
+#
+# Each Chrome extension installation/user gets a
+# unique client_id.
+#
+# This prevents different users from sharing:
+#   - Back Stack
+#   - Forward Stack
+#   - Current Page
+#   - Operation Log
+#
 # =====================================================
 
-back_stack = []
-forward_stack = []
-# ============================================
-# OPERATION LOG
-# ============================================
+sessions = {}
 
-operation_log = []
-# Current page
-current_page = "Home"
-# ============================================
+
+# =====================================================
+# GET / CREATE USER SESSION
+# =====================================================
+
+def get_session(client_id):
+    """
+    Return the session belonging to this client.
+
+    If the client does not exist yet, create a new one.
+    """
+
+    if not client_id:
+        client_id = "default"
+
+    if client_id not in sessions:
+
+        sessions[client_id] = {
+            "back_stack": [],
+            "forward_stack": [],
+            "current_page": "Home",
+            "operation_log": []
+        }
+
+    return sessions[client_id]
+
+
+# =====================================================
+# GET CLIENT ID
+# =====================================================
+
+def get_client_id():
+    """
+    Read client_id from the URL query parameter.
+    """
+
+    client_id = request.args.get(
+        "client_id",
+        "default"
+    )
+
+    client_id = client_id.strip()
+
+    if not client_id:
+        client_id = "default"
+
+    return client_id
+
+
+# =====================================================
 # RECORD OPERATION
-# ============================================
+# =====================================================
 
-def record_operation(operation, page):
+def record_operation(session, operation, page):
 
-    operation_log.append({
+    session["operation_log"].append({
 
         "operation": operation,
 
@@ -35,84 +96,156 @@ def record_operation(operation, page):
 
     })
 
-    # Keep only the latest 20 operations
-    if len(operation_log) > 20:
+    # Keep latest 20 operations
+    if len(session["operation_log"]) > 20:
 
-        operation_log.pop(0)
+        session["operation_log"].pop(0)
 
 
 # =====================================================
-# VISIT A NEW PAGE
+# VISIT A COMPLETELY NEW PAGE
 # =====================================================
 
-def visit_page(page):
+def visit_page(session, page):
 
-    global current_page
+    # Same page = nothing to do
+    if page == session["current_page"]:
 
-    # PUSH current page into Back Stack
-    back_stack.append(current_page)
+        return False
 
-    record_operation(
-        "PUSH",
-        current_page
+
+    # -------------------------------------------------
+    # CURRENT PAGE → BACK STACK
+    # -------------------------------------------------
+
+    session["back_stack"].append(
+        session["current_page"]
     )
 
-    # New page clears Forward Stack
-    if forward_stack:
+    record_operation(
+        session,
+        "PUSH",
+        session["current_page"]
+    )
 
-        forward_stack.clear()
+
+    # -------------------------------------------------
+    # NEW PAGE ALWAYS CLEARS FORWARD STACK
+    # -------------------------------------------------
+
+    if session["forward_stack"]:
+
+        session["forward_stack"].clear()
 
         record_operation(
+            session,
             "CLEAR",
             "Forward Stack"
         )
 
-    # Set new current page
-    current_page = page
+
+    # -------------------------------------------------
+    # NEW PAGE → CURRENT
+    # -------------------------------------------------
+
+    session["current_page"] = page
+
+    record_operation(
+        session,
+        "VISIT",
+        page
+    )
+
+    return True
+
+
 # =====================================================
 # GO BACK
 # =====================================================
 
-def go_back():
+def go_back(session):
 
-    global current_page
+    # No previous page
+    if not session["back_stack"]:
 
-    # Check if Back Stack is empty
-    if not back_stack:
         return False
 
-    # Move current page to Forward Stack
-    forward_stack.append(current_page)
 
-    # Take previous page from Back Stack
-    current_page = back_stack.pop()
+    # -------------------------------------------------
+    # CURRENT → FORWARD STACK
+    # -------------------------------------------------
 
-    # Record operation
-    record_operation("POP", current_page)
+    session["forward_stack"].append(
+        session["current_page"]
+    )
+
+    record_operation(
+        session,
+        "PUSH",
+        session["current_page"]
+    )
+
+
+    # -------------------------------------------------
+    # BACK STACK → CURRENT
+    # -------------------------------------------------
+
+    previous_page = session["back_stack"].pop()
+
+    session["current_page"] = previous_page
+
+    record_operation(
+        session,
+        "POP",
+        session["current_page"]
+    )
 
     return True
+
+
 # =====================================================
 # GO FORWARD
 # =====================================================
 
-def go_forward():
+def go_forward(session):
 
-    global current_page
+    # No forward page
+    if not session["forward_stack"]:
 
-    # Check if Forward Stack is empty
-    if not forward_stack:
         return False
 
-    # Move current page to Back Stack
-    back_stack.append(current_page)
 
-    # Take next page from Forward Stack
-    current_page = forward_stack.pop()
+    # -------------------------------------------------
+    # CURRENT → BACK STACK
+    # -------------------------------------------------
 
-    # Record operation
-    record_operation("POP", current_page)
+    session["back_stack"].append(
+        session["current_page"]
+    )
+
+    record_operation(
+        session,
+        "PUSH",
+        session["current_page"]
+    )
+
+
+    # -------------------------------------------------
+    # FORWARD STACK → CURRENT
+    # -------------------------------------------------
+
+    next_page = session["forward_stack"].pop()
+
+    session["current_page"] = next_page
+
+    record_operation(
+        session,
+        "POP",
+        session["current_page"]
+    )
 
     return True
+
 
 # =====================================================
 # HOME PAGE
@@ -121,76 +254,199 @@ def go_forward():
 @app.route("/")
 def home():
 
+    session = get_session(
+        get_client_id()
+    )
+
     return render_template(
+
         "index.html",
-        current_page=current_page,
-        back_history=back_stack,
-        forward_history=forward_stack
+
+        current_page=session["current_page"],
+
+        back_history=session["back_stack"],
+
+        forward_history=session["forward_stack"]
+
     )
 
 
 # =====================================================
-# VISIT A NEW PAGE
+# VISIT WEBSITE
 # =====================================================
 
 @app.route("/visit/<page>")
 def visit(page):
 
-    # Real website URLs
     pages = {
 
-        "Google": "https://www.google.com",
+        "Google":
+            "https://www.google.com",
 
-        "YouTube": "https://www.youtube.com",
+        "YouTube":
+            "https://www.youtube.com",
 
-        "Instagram": "https://www.instagram.com",
+        "Instagram":
+            "https://www.instagram.com",
 
-        "GitHub": "https://github.com"
+        "GitHub":
+            "https://github.com"
+
     }
 
-    # Open website in the same Chrome tab
+
     if page in pages:
 
-        return redirect(pages[page])
+        return redirect(
+            pages[page]
+        )
 
-    # If page is not found
+
     return redirect("/")
 
 
 # =====================================================
-# SYNCHRONIZE CHROME NAVIGATION WITH PYTHON
+# SYNCHRONIZE CHROME NAVIGATION
+#
+# action:
+#   new
+#   back
+#   forward
 # =====================================================
 
 @app.route("/sync_navigation/<page>")
 def sync_navigation(page):
 
-    # If Chrome is already on this page
-    if page == current_page:
+    client_id = get_client_id()
 
-        return "Already on current page"
+    session = get_session(
+        client_id
+    )
 
-
-    # If page exists in Back Stack
-    # Chrome probably moved backward
-    if page in back_stack:
-
-        go_back()
-
-
-    # If page exists in Forward Stack
-    # Chrome probably moved forward
-    elif page in forward_stack:
-
-        go_forward()
+    action = request.args.get(
+        "action",
+        "new"
+    ).lower().strip()
 
 
-    # Otherwise it is a new page
-    else:
+    print(
+        "SYNC:",
+        page,
+        "ACTION:",
+        action,
+        "CLIENT:",
+        client_id
+    )
 
-        visit_page(page)
+
+    # =================================================
+    # NEW PAGE
+    # =================================================
+
+    if action == "new":
+
+        changed = visit_page(
+            session,
+            page
+        )
+
+        return jsonify({
+
+            "success": True,
+
+            "changed": changed,
+
+            "action": "new",
+
+            "current_page":
+                session["current_page"],
+
+            "back_stack":
+                session["back_stack"],
+
+            "forward_stack":
+                session["forward_stack"]
+
+        })
 
 
-    return "Navigation synchronized"
+    # =================================================
+    # BACK
+    # =================================================
+
+    elif action == "back":
+
+        success = go_back(
+            session
+        )
+
+        return jsonify({
+
+            "success": success,
+
+            "action": "back",
+
+            "current_page":
+                session["current_page"],
+
+            "back_stack":
+                session["back_stack"],
+
+            "forward_stack":
+                session["forward_stack"]
+
+        })
+
+
+    # =================================================
+    # FORWARD
+    # =================================================
+
+    elif action == "forward":
+
+        success = go_forward(
+            session
+        )
+
+        return jsonify({
+
+            "success": success,
+
+            "action": "forward",
+
+            "current_page":
+                session["current_page"],
+
+            "back_stack":
+                session["back_stack"],
+
+            "forward_stack":
+                session["forward_stack"]
+
+        })
+
+
+    # =================================================
+    # UNKNOWN ACTION
+    # =================================================
+
+    return jsonify({
+
+        "success": False,
+
+        "error":
+            "Unknown navigation action: " + action,
+
+        "current_page":
+            session["current_page"],
+
+        "back_stack":
+            session["back_stack"],
+
+        "forward_stack":
+            session["forward_stack"]
+
+    }), 400
 
 
 # =====================================================
@@ -200,13 +456,22 @@ def sync_navigation(page):
 @app.route("/back")
 def back():
 
-    go_back()
+    session = get_session(
+        get_client_id()
+    )
+
+    go_back(session)
 
     return render_template(
+
         "index.html",
-        current_page=current_page,
-        back_history=back_stack,
-        forward_history=forward_stack
+
+        current_page=session["current_page"],
+
+        back_history=session["back_stack"],
+
+        forward_history=session["forward_stack"]
+
     )
 
 
@@ -217,32 +482,50 @@ def back():
 @app.route("/forward")
 def forward():
 
-    go_forward()
+    session = get_session(
+        get_client_id()
+    )
+
+    go_forward(session)
 
     return render_template(
+
         "index.html",
-        current_page=current_page,
-        back_history=back_stack,
-        forward_history=forward_stack
+
+        current_page=session["current_page"],
+
+        back_history=session["back_stack"],
+
+        forward_history=session["forward_stack"]
+
     )
 
 
 # =====================================================
-# SEND STACK INFORMATION TO CHROME EXTENSION
+# STACK STATE
 # =====================================================
 
 @app.route("/stack_state")
 def stack_state():
 
+    session = get_session(
+        get_client_id()
+    )
+
     return jsonify({
 
-        "current_page": current_page,
+        "current_page":
+            session["current_page"],
 
-        "back_stack": back_stack,
+        "back_stack":
+            session["back_stack"],
 
-        "forward_stack": forward_stack
+        "forward_stack":
+            session["forward_stack"]
 
     })
+
+
 # =====================================================
 # OPERATION LOG
 # =====================================================
@@ -250,8 +533,15 @@ def stack_state():
 @app.route("/operation_log")
 def operation_log_route():
 
+    session = get_session(
+        get_client_id()
+    )
+
     return jsonify({
-        "operations": operation_log
+
+        "operations":
+            session["operation_log"]
+
     })
 
 
@@ -262,24 +552,87 @@ def operation_log_route():
 @app.route("/stack_statistics")
 def stack_statistics():
 
+    session = get_session(
+        get_client_id()
+    )
+
     return jsonify({
 
-        "back_count": len(back_stack),
+        "back_count":
+            len(session["back_stack"]),
 
-        "forward_count": len(forward_stack),
+        "forward_count":
+            len(session["forward_stack"]),
 
-        "total_operations": len(operation_log),
+        "total_operations":
+            len(session["operation_log"]),
 
-        "total_pages": len(back_stack) + len(forward_stack)
+        # Include current page
+        "total_pages":
+            len(session["back_stack"])
+            + len(session["forward_stack"])
+            + 1
 
-    })# =====================================================
+    })
+
+
+# =====================================================
+# RESET STACK
+# =====================================================
+
+@app.route("/reset")
+def reset():
+
+    client_id = get_client_id()
+
+    session = get_session(
+        client_id
+    )
+
+    session["back_stack"].clear()
+
+    session["forward_stack"].clear()
+
+    session["operation_log"].clear()
+
+    session["current_page"] = "Home"
+
+    return jsonify({
+
+        "success": True,
+
+        "message":
+            "Stack reset successfully",
+
+        "current_page":
+            session["current_page"],
+
+        "back_stack":
+            session["back_stack"],
+
+        "forward_stack":
+            session["forward_stack"]
+
+    })
+
+
+# =====================================================
 # START FLASK SERVER
 # =====================================================
 
 if __name__ == "__main__":
 
-   app.run(
-    host="0.0.0.0",
-    port=int(os.environ.get("PORT", 5000)),
-    debug=False
-)
+    app.run(
+
+        host="0.0.0.0",
+
+        port=int(
+            os.environ.get(
+                "PORT",
+                5000
+            )
+        ),
+
+        debug=False
+
+    )

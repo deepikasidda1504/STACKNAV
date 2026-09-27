@@ -1503,7 +1503,7 @@ function updateOperationLog() {
 
 
     fetch(
-        "http://127.0.0.1:5000/operation_log"
+        "https://stacknav.onrender.com/operation_log"
     )
 
     .then(
@@ -1621,7 +1621,7 @@ function updateStackStatistics() {
 
 
     fetch(
-        "http://127.0.0.1:5000/stack_statistics"
+        "https://stacknav.onrender.com/stack_statistics"
     )
 
     .then(

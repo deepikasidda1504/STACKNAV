@@ -9,10 +9,90 @@ console.log(
 
 
 // ============================================
+// UNIQUE CLIENT ID
+// ============================================
+
+let clientId = null;
+
+
+// ============================================
+// CREATE / LOAD CLIENT ID
+// ============================================
+
+function initializeClientId() {
+
+    return new Promise(function(resolve) {
+
+        chrome.storage.local.get(
+            ["clientId"],
+            function(result) {
+
+                if (result.clientId) {
+
+                    clientId = result.clientId;
+
+                    console.log(
+                        "Existing Client ID:",
+                        clientId
+                    );
+
+                    resolve(clientId);
+
+                } else {
+
+                    clientId =
+                        crypto.randomUUID();
+
+                    chrome.storage.local.set(
+                        {
+                            clientId: clientId
+                        },
+                        function() {
+
+                            console.log(
+                                "New Client ID:",
+                                clientId
+                            );
+
+                            resolve(clientId);
+
+                        }
+                    );
+
+                }
+
+            }
+        );
+
+    });
+
+}
+
+
+// ============================================
+// MAKE SURE CLIENT ID EXISTS
+// ============================================
+
+const clientReady =
+    initializeClientId();
+
+
+// ============================================
 // LAST URL FOR EACH TAB
 // ============================================
 
 const lastURLs = {};
+
+
+// ============================================
+// PENDING NAVIGATION ACTION
+//
+// new     = completely new page
+// back    = browser back
+// forward = browser forward
+// ============================================
+
+const pendingNavigation = {};
 
 
 // ============================================
@@ -40,25 +120,31 @@ function getWebsiteName(url) {
         const specialNames = {
 
             "google.com": "Google",
+
             "youtube.com": "YouTube",
 
             "web.whatsapp.com": "WhatsApp",
+
             "whatsapp.com": "WhatsApp",
 
             "instagram.com": "Instagram",
+
             "facebook.com": "Facebook",
 
             "github.com": "GitHub",
 
             "gmail.com": "Gmail",
+
             "mail.google.com": "Gmail",
 
             "amazon.com": "Amazon",
+
             "amazon.in": "Amazon",
 
             "linkedin.com": "LinkedIn",
 
             "x.com": "X",
+
             "twitter.com": "X",
 
             "reddit.com": "Reddit",
@@ -182,7 +268,6 @@ function isValidWebsite(url) {
 
     return (
         url.startsWith("http://") ||
-
         url.startsWith("https://")
     );
 
@@ -190,16 +275,19 @@ function isValidWebsite(url) {
 
 
 // ============================================
-// SEND WEBSITE TO FLASK
+// SEND NAVIGATION TO FLASK
 // ============================================
 
-function sendNavigationToFlask(url) {
+async function sendNavigationToFlask(
+    url,
+    action = "new"
+) {
 
     if (
         !isValidWebsite(url)
     ) {
 
-        return Promise.resolve();
+        return;
 
     }
 
@@ -210,77 +298,105 @@ function sendNavigationToFlask(url) {
 
     if (!page) {
 
-        return Promise.resolve();
+        return;
 
     }
 
+
+    await clientReady;
+
+
+    console.log(
+        "================================"
+    );
 
     console.log(
         "Website detected:",
         page
     );
 
+    console.log(
+        "Navigation action:",
+        action
+    );
+
+    console.log(
+        "Client ID:",
+        clientId
+    );
 
     console.log(
         "URL:",
         url
     );
 
-
-    return fetch(
-        "http://127.0.0.1:5000/sync_navigation/" +
-        encodeURIComponent(page)
-    )
-
-    .then(
-        response => {
-
-            console.log(
-                "Flask status:",
-                response.status
-            );
-
-            return response.text();
-
-        }
-    )
-
-    .then(
-        data => {
-
-            console.log(
-                "Flask:",
-                data
-            );
-
-        }
-    )
-
-    .catch(
-        error => {
-
-            console.log(
-                "Flask connection error:",
-                error
-            );
-
-        }
+    console.log(
+        "================================"
     );
+
+
+    const requestURL =
+        "https://stacknav.onrender.com/sync_navigation/" +
+        encodeURIComponent(page) +
+        "?action=" +
+        encodeURIComponent(action) +
+        "&client_id=" +
+        encodeURIComponent(clientId);
+
+
+    try {
+
+        const response =
+            await fetch(requestURL);
+
+
+        console.log(
+            "Flask status:",
+            response.status
+        );
+
+
+        const data =
+            await response.json();
+
+
+        console.log(
+            "Flask response:",
+            data
+        );
+
+    }
+
+    catch (error) {
+
+        console.log(
+            "Flask connection error:",
+            error
+        );
+
+    }
 
 }
 
 
 // ============================================
-// GET OPERATION LOG FROM FLASK
+// GET OPERATION LOG
 // ============================================
 
-function getOperationLog(
+async function getOperationLog(
     sendResponse
 ) {
 
-    fetch(
-        "http://127.0.0.1:5000/operation_log"
-    )
+    await clientReady;
+
+
+    const requestURL =
+        "https://stacknav.onrender.com/operation_log" +
+        "?client_id=" +
+        encodeURIComponent(clientId);
+
+
+    fetch(requestURL)
 
     .then(
         response => {
@@ -307,7 +423,6 @@ function getOperationLog(
                 data
             );
 
-
             sendResponse(
                 data
             );
@@ -323,7 +438,6 @@ function getOperationLog(
                 error
             );
 
-
             sendResponse({
 
                 operations: []
@@ -337,16 +451,23 @@ function getOperationLog(
 
 
 // ============================================
-// GET STACK STATISTICS FROM FLASK
+// GET STACK STATISTICS
 // ============================================
 
-function getStackStatistics(
+async function getStackStatistics(
     sendResponse
 ) {
 
-    fetch(
-        "http://127.0.0.1:5000/stack_statistics"
-    )
+    await clientReady;
+
+
+    const requestURL =
+        "https://stacknav.onrender.com/stack_statistics" +
+        "?client_id=" +
+        encodeURIComponent(clientId);
+
+
+    fetch(requestURL)
 
     .then(
         response => {
@@ -373,7 +494,6 @@ function getStackStatistics(
                 data
             );
 
-
             sendResponse(
                 data
             );
@@ -388,7 +508,6 @@ function getStackStatistics(
                 "Statistics error:",
                 error
             );
-
 
             sendResponse({
 
@@ -411,6 +530,14 @@ function getStackStatistics(
 // ============================================
 // DETECT URL CHANGES
 // ============================================
+//
+// We process ONLY changeInfo.url.
+//
+// We do NOT process "complete" again.
+//
+// This prevents the same navigation from
+// being added to the stacks twice.
+// ============================================
 
 chrome.tabs.onUpdated.addListener(
 
@@ -422,92 +549,98 @@ chrome.tabs.onUpdated.addListener(
 
 
         // ====================================
-        // URL CHANGED
+        // ONLY HANDLE REAL URL CHANGES
         // ====================================
 
         if (
-            changeInfo.url
+            !changeInfo.url
         ) {
-
-            const url =
-                changeInfo.url;
-
-
-            if (
-                lastURLs[tabId] ===
-                url
-            ) {
-
-                return;
-
-            }
-
-
-            lastURLs[tabId] =
-                url;
-
-
-            console.log(
-                "URL changed:",
-                url
-            );
-
-
-            sendNavigationToFlask(
-                url
-            );
-
 
             return;
 
         }
 
 
+        const url =
+            changeInfo.url;
+
+
         // ====================================
-        // PAGE FINISHED LOADING
+        // IGNORE DUPLICATE URL
         // ====================================
 
         if (
-            changeInfo.status ===
-            "complete"
+            lastURLs[tabId] ===
+            url
         ) {
 
-            if (!tab.url) {
-
-                return;
-
-            }
-
-
-            const url =
-                tab.url;
-
-
-            if (
-                lastURLs[tabId] ===
-                url
-            ) {
-
-                return;
-
-            }
-
-
-            lastURLs[tabId] =
-                url;
-
-
-            console.log(
-                "Page loaded:",
-                url
-            );
-
-
-            sendNavigationToFlask(
-                url
-            );
+            return;
 
         }
+
+
+        lastURLs[tabId] =
+            url;
+
+
+        console.log(
+            "URL changed:",
+            url
+        );
+
+
+        // ====================================
+        // GET PENDING ACTION
+        // ====================================
+
+        let action =
+            pendingNavigation[tabId];
+
+
+        // ====================================
+        // NO BUTTON ACTION
+        //
+        // Therefore this is a NEW PAGE.
+        //
+        // Example:
+        // User types URL in address bar
+        // User clicks a link
+        // User opens a website normally
+        // ====================================
+
+        if (
+            !action
+        ) {
+
+            action = "new";
+
+        }
+
+
+        console.log(
+            "Final navigation action:",
+            action
+        );
+
+
+        // ====================================
+        // REMOVE ACTION
+        //
+        // Prevent the same action from being
+        // used for the next navigation.
+        // ====================================
+
+        delete pendingNavigation[tabId];
+
+
+        // ====================================
+        // SEND TO FLASK
+        // ====================================
+
+        sendNavigationToFlask(
+            url,
+            action
+        );
 
     }
 
@@ -523,6 +656,8 @@ chrome.tabs.onRemoved.addListener(
     function(tabId) {
 
         delete lastURLs[tabId];
+
+        delete pendingNavigation[tabId];
 
     }
 
@@ -555,7 +690,6 @@ chrome.runtime.onMessage.addListener(
                 sendResponse
             );
 
-
             return true;
 
         }
@@ -574,7 +708,6 @@ chrome.runtime.onMessage.addListener(
                 sendResponse
             );
 
-
             return true;
 
         }
@@ -589,83 +722,10 @@ chrome.runtime.onMessage.addListener(
             "getStackState"
         ) {
 
-            chrome.tabs.query(
-
-                {
-                    active: true,
-                    currentWindow: true
-                },
-
-                function(tabs) {
-
-                    if (
-                        tabs &&
-                        tabs.length > 0
-                    ) {
-
-                        const activeTab =
-                            tabs[0];
-
-                        const currentURL =
-                            activeTab.url;
-
-
-                        if (
-                            isValidWebsite(
-                                currentURL
-                            )
-                        ) {
-
-                            const currentPage =
-                                getWebsiteName(
-                                    currentURL
-                                );
-
-
-                            console.log(
-                                "Active tab:",
-                                currentPage
-                            );
-
-
-                            sendNavigationToFlask(
-                                currentURL
-                            )
-
-                            .finally(
-
-                                function() {
-
-                                    getStackState(
-                                        sendResponse
-                                    );
-
-                                }
-
-                            );
-
-
-                            return;
-
-                        }
-
-                    }
-
-
-                    // =================================
-                    // NO VALID URL
-                    // =================================
-
-                    getStackState(
-                        sendResponse
-                    );
-
-                }
-
+            getStackState(
+                sendResponse
             );
 
-
-            // Keep message channel open
             return true;
 
         }
@@ -689,6 +749,63 @@ chrome.runtime.onMessage.addListener(
 
 
         // ====================================
+        // CUSTOM URL
+        // ====================================
+
+        if (
+            message.action ===
+            "customUrl"
+        ) {
+
+            console.log(
+                "Custom URL:",
+                message.url
+            );
+
+
+            let url =
+                message.url.trim();
+
+
+            // Add https:// if missing
+
+            if (
+                !url.startsWith("http://") &&
+                !url.startsWith("https://")
+            ) {
+
+                url =
+                    "https://" + url;
+
+            }
+
+
+            // --------------------------------
+            // IMPORTANT
+            // Custom URL = NEW NAVIGATION
+            // --------------------------------
+
+            pendingNavigation[tabId] =
+                "new";
+
+
+            chrome.tabs.update(
+
+                tabId,
+
+                {
+                    url: url
+                }
+
+            );
+
+
+            return;
+
+        }
+
+
+        // ====================================
         // BACK
         // ====================================
 
@@ -702,6 +819,14 @@ chrome.runtime.onMessage.addListener(
             );
 
 
+            // --------------------------------
+            // Tell Flask this is BACK
+            // --------------------------------
+
+            pendingNavigation[tabId] =
+                "back";
+
+
             chrome.tabs.goBack(
                 tabId
             )
@@ -713,6 +838,9 @@ chrome.runtime.onMessage.addListener(
                         "Cannot go back:",
                         error.message
                     );
+
+
+                    delete pendingNavigation[tabId];
 
                 }
             );
@@ -737,6 +865,14 @@ chrome.runtime.onMessage.addListener(
             );
 
 
+            // --------------------------------
+            // Tell Flask this is FORWARD
+            // --------------------------------
+
+            pendingNavigation[tabId] =
+                "forward";
+
+
             chrome.tabs.goForward(
                 tabId
             )
@@ -748,6 +884,9 @@ chrome.runtime.onMessage.addListener(
                         "Cannot go forward:",
                         error.message
                     );
+
+
+                    delete pendingNavigation[tabId];
 
                 }
             );
@@ -766,6 +905,15 @@ chrome.runtime.onMessage.addListener(
             message.action ===
             "google"
         ) {
+
+            console.log(
+                "Google button clicked"
+            );
+
+
+            pendingNavigation[tabId] =
+                "new";
+
 
             chrome.tabs.update(
 
@@ -793,6 +941,15 @@ chrome.runtime.onMessage.addListener(
             "youtube"
         ) {
 
+            console.log(
+                "YouTube button clicked"
+            );
+
+
+            pendingNavigation[tabId] =
+                "new";
+
+
             chrome.tabs.update(
 
                 tabId,
@@ -818,6 +975,15 @@ chrome.runtime.onMessage.addListener(
             message.action ===
             "instagram"
         ) {
+
+            console.log(
+                "Instagram button clicked"
+            );
+
+
+            pendingNavigation[tabId] =
+                "new";
+
 
             chrome.tabs.update(
 
@@ -845,6 +1011,15 @@ chrome.runtime.onMessage.addListener(
             "github"
         ) {
 
+            console.log(
+                "GitHub button clicked"
+            );
+
+
+            pendingNavigation[tabId] =
+                "new";
+
+
             chrome.tabs.update(
 
                 tabId,
@@ -870,13 +1045,20 @@ chrome.runtime.onMessage.addListener(
 // GET STACK STATE FROM FLASK
 // ============================================
 
-function getStackState(
+async function getStackState(
     sendResponse
 ) {
 
-    fetch(
-        "http://127.0.0.1:5000/stack_state"
-    )
+    await clientReady;
+
+
+    const requestURL =
+        "https://stacknav.onrender.com/stack_state" +
+        "?client_id=" +
+        encodeURIComponent(clientId);
+
+
+    fetch(requestURL)
 
     .then(
         response => {
