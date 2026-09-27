@@ -1,6 +1,7 @@
 // ============================================
 // BROWSER HISTORY STACK
 // AUTOMATIC WEBSITE DETECTION
+// PER-TAB STACK SESSIONS
 // ============================================
 
 console.log(
@@ -9,7 +10,7 @@ console.log(
 
 
 // ============================================
-// UNIQUE CLIENT ID
+// UNIQUE EXTENSION CLIENT ID
 // ============================================
 
 let clientId = null;
@@ -29,7 +30,8 @@ function initializeClientId() {
 
                 if (result.clientId) {
 
-                    clientId = result.clientId;
+                    clientId =
+                        result.clientId;
 
                     console.log(
                         "Existing Client ID:",
@@ -45,7 +47,8 @@ function initializeClientId() {
 
                     chrome.storage.local.set(
                         {
-                            clientId: clientId
+                            clientId:
+                                clientId
                         },
                         function() {
 
@@ -78,6 +81,37 @@ const clientReady =
 
 
 // ============================================
+// CREATE SESSION ID FOR A TAB
+// ============================================
+//
+// IMPORTANT:
+//
+// clientId alone = same for all tabs
+// clientId + tabId = different session per tab
+//
+// ============================================
+
+function getTabSessionId(tabId) {
+
+    if (
+        tabId === undefined ||
+        tabId === null
+    ) {
+
+        return clientId;
+
+    }
+
+    return (
+        clientId +
+        "_tab_" +
+        String(tabId)
+    );
+
+}
+
+
+// ============================================
 // LAST URL FOR EACH TAB
 // ============================================
 
@@ -87,9 +121,9 @@ const lastURLs = {};
 // ============================================
 // PENDING NAVIGATION ACTION
 //
-// new     = completely new page
-// back    = browser back
-// forward = browser forward
+// new
+// back
+// forward
 // ============================================
 
 const pendingNavigation = {};
@@ -110,7 +144,10 @@ function getWebsiteName(url) {
             parsedURL.hostname;
 
         hostname =
-            hostname.replace(/^www\./, "");
+            hostname.replace(
+                /^www\./,
+                ""
+            );
 
 
         // ========================================
@@ -119,39 +156,56 @@ function getWebsiteName(url) {
 
         const specialNames = {
 
-            "google.com": "Google",
+            "google.com":
+                "Google",
 
-            "youtube.com": "YouTube",
+            "youtube.com":
+                "YouTube",
 
-            "web.whatsapp.com": "WhatsApp",
+            "web.whatsapp.com":
+                "WhatsApp",
 
-            "whatsapp.com": "WhatsApp",
+            "whatsapp.com":
+                "WhatsApp",
 
-            "instagram.com": "Instagram",
+            "instagram.com":
+                "Instagram",
 
-            "facebook.com": "Facebook",
+            "facebook.com":
+                "Facebook",
 
-            "github.com": "GitHub",
+            "github.com":
+                "GitHub",
 
-            "gmail.com": "Gmail",
+            "gmail.com":
+                "Gmail",
 
-            "mail.google.com": "Gmail",
+            "mail.google.com":
+                "Gmail",
 
-            "amazon.com": "Amazon",
+            "amazon.com":
+                "Amazon",
 
-            "amazon.in": "Amazon",
+            "amazon.in":
+                "Amazon",
 
-            "linkedin.com": "LinkedIn",
+            "linkedin.com":
+                "LinkedIn",
 
-            "x.com": "X",
+            "x.com":
+                "X",
 
-            "twitter.com": "X",
+            "twitter.com":
+                "X",
 
-            "reddit.com": "Reddit",
+            "reddit.com":
+                "Reddit",
 
-            "wikipedia.org": "Wikipedia",
+            "wikipedia.org":
+                "Wikipedia",
 
-            "codetantra.com": "CodeTantra"
+            "codetantra.com":
+                "CodeTantra"
 
         };
 
@@ -248,17 +302,27 @@ function isValidWebsite(url) {
 
 
     if (
-        url.startsWith("chrome://") ||
+
+        url.startsWith(
+            "chrome://"
+        ) ||
 
         url.startsWith(
             "chrome-extension://"
         ) ||
 
-        url.startsWith("edge://") ||
+        url.startsWith(
+            "edge://"
+        ) ||
 
-        url.startsWith("about:") ||
+        url.startsWith(
+            "about:"
+        ) ||
 
-        url.startsWith("devtools://")
+        url.startsWith(
+            "devtools://"
+        )
+
     ) {
 
         return false;
@@ -267,8 +331,15 @@ function isValidWebsite(url) {
 
 
     return (
-        url.startsWith("http://") ||
-        url.startsWith("https://")
+
+        url.startsWith(
+            "http://"
+        ) ||
+
+        url.startsWith(
+            "https://"
+        )
+
     );
 
 }
@@ -277,10 +348,16 @@ function isValidWebsite(url) {
 // ============================================
 // SEND NAVIGATION TO FLASK
 // ============================================
+//
+// tabId is IMPORTANT.
+//
+// Each tab gets its own session.
+// ============================================
 
 async function sendNavigationToFlask(
     url,
-    action = "new"
+    action = "new",
+    tabId
 ) {
 
     if (
@@ -306,6 +383,10 @@ async function sendNavigationToFlask(
     await clientReady;
 
 
+    const sessionId =
+        getTabSessionId(tabId);
+
+
     console.log(
         "================================"
     );
@@ -321,8 +402,13 @@ async function sendNavigationToFlask(
     );
 
     console.log(
-        "Client ID:",
-        clientId
+        "Tab ID:",
+        tabId
+    );
+
+    console.log(
+        "Session ID:",
+        sessionId
     );
 
     console.log(
@@ -336,18 +422,26 @@ async function sendNavigationToFlask(
 
 
     const requestURL =
+
         "https://stacknav.onrender.com/sync_navigation/" +
+
         encodeURIComponent(page) +
+
         "?action=" +
+
         encodeURIComponent(action) +
+
         "&client_id=" +
-        encodeURIComponent(clientId);
+
+        encodeURIComponent(sessionId);
 
 
     try {
 
         const response =
-            await fetch(requestURL);
+            await fetch(
+                requestURL
+            );
 
 
         console.log(
@@ -382,18 +476,31 @@ async function sendNavigationToFlask(
 // ============================================
 // GET OPERATION LOG
 // ============================================
+//
+// Uses sender tab ID.
+// ============================================
 
 async function getOperationLog(
-    sendResponse
+    sendResponse,
+    tabId
 ) {
 
     await clientReady;
 
 
+    const sessionId =
+        getTabSessionId(tabId);
+
+
     const requestURL =
+
         "https://stacknav.onrender.com/operation_log" +
+
         "?client_id=" +
-        encodeURIComponent(clientId);
+
+        encodeURIComponent(
+            sessionId
+        );
 
 
     fetch(requestURL)
@@ -423,6 +530,7 @@ async function getOperationLog(
                 data
             );
 
+
             sendResponse(
                 data
             );
@@ -437,6 +545,7 @@ async function getOperationLog(
                 "Operation log error:",
                 error
             );
+
 
             sendResponse({
 
@@ -455,16 +564,26 @@ async function getOperationLog(
 // ============================================
 
 async function getStackStatistics(
-    sendResponse
+    sendResponse,
+    tabId
 ) {
 
     await clientReady;
 
 
+    const sessionId =
+        getTabSessionId(tabId);
+
+
     const requestURL =
+
         "https://stacknav.onrender.com/stack_statistics" +
+
         "?client_id=" +
-        encodeURIComponent(clientId);
+
+        encodeURIComponent(
+            sessionId
+        );
 
 
     fetch(requestURL)
@@ -494,6 +613,7 @@ async function getStackStatistics(
                 data
             );
 
+
             sendResponse(
                 data
             );
@@ -508,6 +628,7 @@ async function getStackStatistics(
                 "Statistics error:",
                 error
             );
+
 
             sendResponse({
 
@@ -529,14 +650,6 @@ async function getStackStatistics(
 
 // ============================================
 // DETECT URL CHANGES
-// ============================================
-//
-// We process ONLY changeInfo.url.
-//
-// We do NOT process "complete" again.
-//
-// This prevents the same navigation from
-// being added to the stacks twice.
 // ============================================
 
 chrome.tabs.onUpdated.addListener(
@@ -598,21 +711,13 @@ chrome.tabs.onUpdated.addListener(
 
 
         // ====================================
-        // NO BUTTON ACTION
-        //
-        // Therefore this is a NEW PAGE.
-        //
-        // Example:
-        // User types URL in address bar
-        // User clicks a link
-        // User opens a website normally
+        // NORMAL WEBSITE NAVIGATION
         // ====================================
 
-        if (
-            !action
-        ) {
+        if (!action) {
 
-            action = "new";
+            action =
+                "new";
 
         }
 
@@ -624,10 +729,7 @@ chrome.tabs.onUpdated.addListener(
 
 
         // ====================================
-        // REMOVE ACTION
-        //
-        // Prevent the same action from being
-        // used for the next navigation.
+        // REMOVE PENDING ACTION
         // ====================================
 
         delete pendingNavigation[tabId];
@@ -639,7 +741,8 @@ chrome.tabs.onUpdated.addListener(
 
         sendNavigationToFlask(
             url,
-            action
+            action,
+            tabId
         );
 
     }
@@ -658,6 +761,11 @@ chrome.tabs.onRemoved.addListener(
         delete lastURLs[tabId];
 
         delete pendingNavigation[tabId];
+
+        console.log(
+            "Tab closed:",
+            tabId
+        );
 
     }
 
@@ -678,6 +786,20 @@ chrome.runtime.onMessage.addListener(
 
 
         // ====================================
+        // GET TAB ID
+        // ====================================
+        //
+        // Content scripts have sender.tab.id.
+        //
+        // ====================================
+
+        const tabId =
+            sender.tab
+                ? sender.tab.id
+                : null;
+
+
+        // ====================================
         // GET OPERATION LOG
         // ====================================
 
@@ -687,8 +809,10 @@ chrome.runtime.onMessage.addListener(
         ) {
 
             getOperationLog(
-                sendResponse
+                sendResponse,
+                tabId
             );
+
 
             return true;
 
@@ -705,8 +829,10 @@ chrome.runtime.onMessage.addListener(
         ) {
 
             getStackStatistics(
-                sendResponse
+                sendResponse,
+                tabId
             );
+
 
             return true;
 
@@ -723,8 +849,10 @@ chrome.runtime.onMessage.addListener(
         ) {
 
             getStackState(
-                sendResponse
+                sendResponse,
+                tabId
             );
+
 
             return true;
 
@@ -744,7 +872,11 @@ chrome.runtime.onMessage.addListener(
         }
 
 
-        const tabId =
+        // IMPORTANT:
+        // tabId is taken from sender.tab.id
+        // so each tab controls its own stack.
+
+        const currentTabId =
             sender.tab.id;
 
 
@@ -767,31 +899,32 @@ chrome.runtime.onMessage.addListener(
                 message.url.trim();
 
 
-            // Add https:// if missing
-
             if (
-                !url.startsWith("http://") &&
-                !url.startsWith("https://")
+                !url.startsWith(
+                    "http://"
+                ) &&
+
+                !url.startsWith(
+                    "https://"
+                )
             ) {
 
                 url =
-                    "https://" + url;
+                    "https://" +
+                    url;
 
             }
 
 
-            // --------------------------------
-            // IMPORTANT
-            // Custom URL = NEW NAVIGATION
-            // --------------------------------
-
-            pendingNavigation[tabId] =
+            pendingNavigation[
+                currentTabId
+            ] =
                 "new";
 
 
             chrome.tabs.update(
 
-                tabId,
+                currentTabId,
 
                 {
                     url: url
@@ -815,20 +948,20 @@ chrome.runtime.onMessage.addListener(
         ) {
 
             console.log(
-                "Back button clicked"
+                "Back button clicked",
+                "Tab:",
+                currentTabId
             );
 
 
-            // --------------------------------
-            // Tell Flask this is BACK
-            // --------------------------------
-
-            pendingNavigation[tabId] =
+            pendingNavigation[
+                currentTabId
+            ] =
                 "back";
 
 
             chrome.tabs.goBack(
-                tabId
+                currentTabId
             )
 
             .catch(
@@ -840,7 +973,9 @@ chrome.runtime.onMessage.addListener(
                     );
 
 
-                    delete pendingNavigation[tabId];
+                    delete pendingNavigation[
+                        currentTabId
+                    ];
 
                 }
             );
@@ -861,20 +996,20 @@ chrome.runtime.onMessage.addListener(
         ) {
 
             console.log(
-                "Forward button clicked"
+                "Forward button clicked",
+                "Tab:",
+                currentTabId
             );
 
 
-            // --------------------------------
-            // Tell Flask this is FORWARD
-            // --------------------------------
-
-            pendingNavigation[tabId] =
+            pendingNavigation[
+                currentTabId
+            ] =
                 "forward";
 
 
             chrome.tabs.goForward(
-                tabId
+                currentTabId
             )
 
             .catch(
@@ -886,7 +1021,9 @@ chrome.runtime.onMessage.addListener(
                     );
 
 
-                    delete pendingNavigation[tabId];
+                    delete pendingNavigation[
+                        currentTabId
+                    ];
 
                 }
             );
@@ -907,17 +1044,21 @@ chrome.runtime.onMessage.addListener(
         ) {
 
             console.log(
-                "Google button clicked"
+                "Google button clicked",
+                "Tab:",
+                currentTabId
             );
 
 
-            pendingNavigation[tabId] =
+            pendingNavigation[
+                currentTabId
+            ] =
                 "new";
 
 
             chrome.tabs.update(
 
-                tabId,
+                currentTabId,
 
                 {
                     url:
@@ -942,17 +1083,21 @@ chrome.runtime.onMessage.addListener(
         ) {
 
             console.log(
-                "YouTube button clicked"
+                "YouTube button clicked",
+                "Tab:",
+                currentTabId
             );
 
 
-            pendingNavigation[tabId] =
+            pendingNavigation[
+                currentTabId
+            ] =
                 "new";
 
 
             chrome.tabs.update(
 
-                tabId,
+                currentTabId,
 
                 {
                     url:
@@ -977,17 +1122,21 @@ chrome.runtime.onMessage.addListener(
         ) {
 
             console.log(
-                "Instagram button clicked"
+                "Instagram button clicked",
+                "Tab:",
+                currentTabId
             );
 
 
-            pendingNavigation[tabId] =
+            pendingNavigation[
+                currentTabId
+            ] =
                 "new";
 
 
             chrome.tabs.update(
 
-                tabId,
+                currentTabId,
 
                 {
                     url:
@@ -1012,17 +1161,21 @@ chrome.runtime.onMessage.addListener(
         ) {
 
             console.log(
-                "GitHub button clicked"
+                "GitHub button clicked",
+                "Tab:",
+                currentTabId
             );
 
 
-            pendingNavigation[tabId] =
+            pendingNavigation[
+                currentTabId
+            ] =
                 "new";
 
 
             chrome.tabs.update(
 
-                tabId,
+                currentTabId,
 
                 {
                     url:
@@ -1046,16 +1199,26 @@ chrome.runtime.onMessage.addListener(
 // ============================================
 
 async function getStackState(
-    sendResponse
+    sendResponse,
+    tabId
 ) {
 
     await clientReady;
 
 
+    const sessionId =
+        getTabSessionId(tabId);
+
+
     const requestURL =
+
         "https://stacknav.onrender.com/stack_state" +
+
         "?client_id=" +
-        encodeURIComponent(clientId);
+
+        encodeURIComponent(
+            sessionId
+        );
 
 
     fetch(requestURL)
@@ -1082,7 +1245,9 @@ async function getStackState(
 
             console.log(
                 "Stack state:",
-                data
+                data,
+                "Tab:",
+                tabId
             );
 
 
